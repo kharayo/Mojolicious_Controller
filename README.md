@@ -2,3 +2,73 @@ Mojolicious_Controller
 ======================
 
 Mojolicious Controller
+
+sub return_stash_json {
+    my $self = shift;
+    
+    my $result = { name => [1,2,3,5,8,9,0] };
+    my $json = $self->render_to_string( json => $result, format => 'js' ); 
+    $self->stash(
+        title => 'this is a title',
+        rows => 2,
+        j_data => $json
+    );
+    $self->respond_to( 
+        html => { template => 'falls/stash_json_exp' },
+    );
+}
+
+sub return_json {
+    my $self = shift;
+    my $callback = $self->param('callback');
+    my $json; 
+
+    if ($self->param('format') eq 'json') {
+        my $result = { name => [1,2,3,5] };
+        $json = $self->render_to_string( json => $result, format => 'js' ); 
+    } 
+    $self->app->log->debug( Dumper $json );
+    $self->respond_to( 
+        json => { data => $json },
+        html => { template => 'falls/exp', title  => 'Expenses' },
+    );
+}
+
+sub test {
+    my $self = shift;
+    my $dbh = $self->app->dbh;
+    my $sql = qq{
+          SELECT expense_category 
+            FROM expense_categories 
+        ORDER BY expense_category ASC
+    };
+    my $sth = $dbh->prepare($sql);
+    $sth->execute;
+    my $array_ref = $sth->fetchall_arrayref;
+    my @expenses = map { $_->[0] } @$array_ref;
+    $self->render( expenses => \@expenses ); 
+}
+
+sub email {
+    my $self = shift;
+
+    my $name = $self->param('name');
+    my $email = $self->param('email'); 
+    my $msg = $self->param('msg');
+    my $body = "Name: " . $name . "\n".
+              "Email: " . $email . "\n".
+            "Message:\n" . $msg;
+    $self->mail( to => 'vogendrix@hotmail.com', 
+            subject => "Falls recording studio auto message",
+               data => $body 
+    );
+    my $c = $self->flash(
+        { message => 'Message sent. We will contact you shortly.' }
+    );
+
+    $c->render_later;
+    Mojo::IOLoop->timer(2 => sub {
+        $c->redirect_to( '/' );
+    });
+}
+
